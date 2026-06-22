@@ -18,7 +18,7 @@
         <template #default="{ row }">
           <el-button size="small">编辑</el-button>
           <el-button
-            v-if="row.status === CourseStatus.DRAFT"
+            v-if="isAdmin && row.status === CourseStatus.DRAFT"
             size="small"
             type="success"
             @click="submitForReview(row.id)"
@@ -30,7 +30,7 @@
             @click="archive(row.id)"
           >下架</el-button>
           <el-button
-            v-if="row.status === CourseStatus.ARCHIVED"
+            v-if="isAdmin && row.status === CourseStatus.ARCHIVED"
             size="small"
             type="success"
             @click="resubmit(row.id)"
@@ -69,14 +69,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
-import { CourseLevel, CourseStatus, courseStatusLabel } from '@/constants/enums'
+import { CourseLevel, CourseStatus, UserRole, courseStatusLabel } from '@/constants/enums'
+import { useAuthStore } from '@/stores/authStore'
 import { useCourseStore } from '@/stores/courseStore'
 import type { Course } from '@/types/course'
 
 const courseStore = useCourseStore()
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.role === UserRole.ADMIN)
 const rows = ref<Course[]>([])
 const dialogVisible = ref(false)
 const form = reactive({
