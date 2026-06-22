@@ -14,10 +14,32 @@
       </el-table-column>
       <el-table-column prop="student_count" label="学员" width="90" />
       <el-table-column prop="rating" label="评分" width="90" />
-      <el-table-column label="操作" width="220">
+      <el-table-column label="操作" width="320">
         <template #default="{ row }">
           <el-button size="small">编辑</el-button>
-          <el-button size="small" @click="archive(row.id)">下架</el-button>
+          <el-button
+            v-if="row.status === CourseStatus.DRAFT"
+            size="small"
+            type="success"
+            @click="submitForReview(row.id)"
+          >提交审核</el-button>
+          <el-button
+            v-if="row.status === CourseStatus.PUBLISHED"
+            size="small"
+            type="warning"
+            @click="archive(row.id)"
+          >下架</el-button>
+          <el-button
+            v-if="row.status === CourseStatus.ARCHIVED"
+            size="small"
+            type="success"
+            @click="resubmit(row.id)"
+          >重新上架</el-button>
+          <el-button
+            v-if="row.status === CourseStatus.ARCHIVED"
+            size="small"
+            @click="backToDraft(row.id)"
+          >退回草稿</el-button>
           <el-button size="small" type="primary">学生数据</el-button>
         </template>
       </el-table-column>
@@ -48,6 +70,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { CourseLevel, CourseStatus, courseStatusLabel } from '@/constants/enums'
 import { useCourseStore } from '@/stores/courseStore'
@@ -75,9 +98,42 @@ async function create() {
   await load()
 }
 
+async function submitForReview(id: number) {
+  try {
+    await courseStore.updateStatus(id, CourseStatus.PUBLISHED)
+    await load()
+  } catch (e) {
+    ElMessage.warning('提交审核失败：需要管理员权限上架课程')
+  }
+}
+
 async function archive(id: number) {
-  await courseStore.updateStatus(id, CourseStatus.DRAFT)
-  await load()
+  try {
+    await courseStore.updateStatus(id, CourseStatus.ARCHIVED)
+    ElMessage.success('课程已下架归档')
+    await load()
+  } catch (e) {
+    ElMessage.error('下架操作失败')
+  }
+}
+
+async function resubmit(id: number) {
+  try {
+    await courseStore.updateStatus(id, CourseStatus.PUBLISHED)
+    await load()
+  } catch (e) {
+    ElMessage.warning('重新上架失败：需要管理员权限审核')
+  }
+}
+
+async function backToDraft(id: number) {
+  try {
+    await courseStore.updateStatus(id, CourseStatus.DRAFT)
+    ElMessage.success('课程已退回草稿，可重新编辑')
+    await load()
+  } catch (e) {
+    ElMessage.error('退回草稿操作失败')
+  }
 }
 
 onMounted(load)

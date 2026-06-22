@@ -2,7 +2,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.constants.enums import CourseStatus, UserRole
-from app.exceptions.course import CourseNotFoundException, CoursePermissionException
+from app.exceptions.course import CourseNotFoundException, CoursePermissionException, CourseStatusTransitionException
 from app.models.chapter import Chapter
 from app.models.course import Course
 from app.models.lesson import Lesson
@@ -80,9 +80,28 @@ class CourseService:
         course = CourseService.get_course(db, course_id)
         if user.role != UserRole.ADMIN and course.instructor_id != user.id:
             raise CoursePermissionException()
+
         before = {"status": course.status.value}
-        if course.status == CourseStatus.DRAFT and status == CourseStatus.PUBLISHED and user.role != UserRole.ADMIN:
-            raise CoursePermissionException("课程上架需要管理员审核")
+        current = course.status
+
+        if current == status:
+            return course
+
+        if current == CourseStatus.DRAFT:
+            if status != CourseStatus.PUBLISHED:
+                raise CourseStatusTransitionException("草稿状态仅可提交上架")
+            if user.role != UserRole.ADMIN:
+                raise CoursePermissionException("课程上架需要管理员审核")
+        elif current == CourseStatus.PUBLISHED:
+            if status != CourseStatus.ARCHIVED:
+                raise CourseStatusTransitionException("已上架课程仅可下架归档")
+        elif current == CourseStatus.ARCHIVED:
+            if status == CourseStatus.PUBLISHED:
+                if user.role != UserRole.ADMIN:
+                    raise CoursePermissionException("重新上架需要管理员审核")
+            elif status != CourseStatus.DRAFT:
+                raise CourseStatusTransitionException("已归档课程仅可退回草稿或重新上架")
+
         course.status = status
         AuditService.record(db, user_id=user.id, action="UPDATE", entity="Course", entity_id=str(course.id), before_data=before, after_data={"status": status.value}, ip_address=ip_address)
         db.commit()
